@@ -116,8 +116,16 @@ def stop_forwarding():
     os.kill(process.pid, signal.SIGTERM)  # 終止進程
     return jsonify({"message": f"Stopped forwarding for port {local_port}"})
 
+@app.route('/get_forwarding_status', methods=['GET'])
+def get_forwarding_status():
+    return jsonify({"forwarding_processes": {port: process.pid for port, process in forwarding_processes.items()}})
+
+@app.route("/health", methods=['GET'])
+def health():
+    return jsonify({"status": "ok"})
+
 if __name__ == '__main__':
     # 啓動時自動設置端口轉發
     setup_port_forwarding(40000, 40000)
-    setup_port_forwarding(5000, 5000)
+    setup_port_forwarding(5000, 15000)
     app.run(host="0.0.0.0", port=5000)
