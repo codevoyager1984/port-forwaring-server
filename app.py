@@ -87,19 +87,39 @@ def setup_port_forwarding(local_port, remote_port):
 def start_forwarding():
     data = request.json
     local_port = data.get("local_port")
-    remote_port = data.get("remote_port")
 
-    if not local_port or not remote_port:
-        return jsonify({"error": "Missing local_port or remote_port"}), 400
+    if not local_port:
+        return jsonify({"error": "Missing local_port"}), 400
 
     if local_port in forwarding_processes:
         return jsonify({"error": f"Port {local_port} is already forwarded"}), 400
+
+    # 從服務器獲取可用端口
+    try:
+        cmd = [
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-i", SSH_KEY_PATH,
+            f"{SSH_USER}@{SSH_HOST}",
+            "python3 -c 'import socket; s=socket.socket(); s.bind((\"0.0.0.0\", 0)); print(s.getsockname()[1]); s.close()'"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return jsonify({"error": "Failed to get available remote port"}), 500
+        
+        remote_port = int(result.stdout.strip())
+    except Exception as e:
+        return jsonify({"error": f"Failed to get available remote port: {str(e)}"}), 500
 
     process = setup_port_forwarding(local_port, remote_port)
     if not process:
         return jsonify({"error": "Failed to start forwarding"}), 500
 
-    return jsonify({"message": f"Forwarding local port {local_port} to {SSH_HOST}:{remote_port}", "pid": process.pid})
+    return jsonify({
+        "message": f"Forwarding local port {local_port} to {SSH_HOST}:{remote_port}",
+        "pid": process.pid,
+        "remote_port": remote_port
+    })
 
 @app.route('/stop_forwarding', methods=['POST'])
 def stop_forwarding():
@@ -126,6 +146,6 @@ def health():
 
 if __name__ == '__main__':
     # 啓動時自動設置端口轉發
-    setup_port_forwarding(40000, 40000)
-    setup_port_forwarding(5000, 15000)
+    setup_port_forwarding(40000, 4123)
+    setup_port_forwarding(5000, 5123)
     app.run(host="0.0.0.0", port=5000)
